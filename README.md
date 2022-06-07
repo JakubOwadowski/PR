@@ -1,1 +1,3 @@
-# PR
+W Bździszewie urządzono skansen skrzatów. Skrzaty żyły tam przez jakiś czas spokojnie, zaplatając koniom warkoczyki, ale po jakimś czasie znerwicowane konie miały dosyć - ostatecznie więc przyjęto system, w którym skrzaty muszą konkurować o konie i warkoczyki, a po każdej sesji konia ze skrzatem, koń musi odbyć sesję z psycholożkami.
+
+Danych jest S skrzatów i P psycholożek. Skrzaty konkurują o losową liczbę w < W wstążeczek (wstążeczek jest maksymalnie W) oraz o K koni. Po zakończeniu sesji skrzata, koń trafia na kozetkę do psycholożki, która rozplata mu warkoczyki, puszcza muzykę relaksacyjną oraz pyta o relacje z matką. Dopiero po sesji wstążeczki trafiają z powrotem do puli do wykorzystania. Psycholożki konkurują o konie oraz o S salek terapeutycznych. Wstążeczki i sale są nierozróżnialne.
