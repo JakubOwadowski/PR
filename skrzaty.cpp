@@ -17,7 +17,8 @@ using std::remove_if;
 
 const int W = 10;
 const int K = 5;
-const int S = 5;
+const float S = 0.4;
+const float P = 1 - S;
 const int STATUS_KONIE = 5000;
 const int STATUS_WSTAZKI = 6000;
 const int STATUS_RELEASE = 7000;
@@ -55,13 +56,18 @@ pthread_mutex_t mutexQueueWstazki = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexACK = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexKonie = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexWstazki = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexWaiting = PTHREAD_MUTEX_INITIALIZER;
 
 
 int getWating(vector<KonieData>data, KonieData konieData) {
-    auto index = find(data.begin(), data.end(), konieData);
-
-    if (index != data.end())
-        return index - data.begin() + 1;
+    pthread_mutex_lock(&mutexWaiting);
+        auto index = find(data.begin(), data.end(), konieData);
+        if (index != data.end()) {
+            auto dataBegin = data.begin();
+            pthread_mutex_unlock(&mutexWaiting);
+            return index - dataBegin + 1;
+        }
+    pthread_mutex_unlock(&mutexWaiting);
     return -1;
 }
 
@@ -135,14 +141,14 @@ void removeFromWstazkiQueue(std::vector<WstazkiData> & wstazkiDataQueue, int ran
 
 
 void *message_processor_skrzat (void * arg) {
-    int reciverMessage[3];
+    int recivedMessage[3];
     int message[3];
     while (true) {
         MPI_Status status;
-        MPI_Recv(reciverMessage, 3, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Recv(recivedMessage, 3, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
         if (status.MPI_TAG == STATUS_KONIE){
-            increaseLamport(reciverMessage[1]);
+            increaseLamport(recivedMessage[1]);
             message[0] = rank;
             message[1] = lamport_clock;
             message[2] = 2137;
@@ -161,7 +167,7 @@ void *message_processor_skrzat (void * arg) {
 		    pthread_mutex_unlock(&mutexSend);
         }
         else if(status.MPI_TAG == STATUS_WSTAZKI){
-            increaseLamport(reciverMessage[1]);
+            increaseLamport(recivedMessage[1]);
             message[0] = rank;
             message[1] = lamport_clock;
             message[2] = 2137;
@@ -193,10 +199,7 @@ void *message_processor_skrzat (void * arg) {
             pthread_mutex_lock(&mutexWstazki);
                 removeFromWstazkiQueue(wstazkiQueue, status.MPI_SOURCE);
             pthread_mutex_unlock(&mutexWstazki);
-
         }
-
-
     }
 
     return 0;
@@ -252,6 +255,7 @@ int main (int argc, char** argv) {
         pthread_mutex_lock(&mutexLamport);
             message[0] = rank;
             message[1] = lamport_clock;
+            message[2] = 2137;
             konieData.lamport_clock = lamport_clock;
             konieData.rank = rank;
         pthread_mutex_unlock(&mutexLamport);
@@ -270,7 +274,7 @@ int main (int argc, char** argv) {
         cout << rank << ": Got  \"koń\"" << endl;
         //KONIE END
 
-        int time = rand() % 5;
+        int time = rand() % 4 + 1;
         cout << rank << ": doing stuff for " << time << "s" << endl;
         sleep(time); //DO STUFF
         cout << rank << ": finished" << endl;
