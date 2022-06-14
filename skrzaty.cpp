@@ -146,7 +146,7 @@ void *message_processor_skrzat (void * arg) {
             message[0] = rank;
             message[1] = lamport_clock;
             message[2] = 2137;
-            cout << "Timestamp: " << message[1] << "Cout process rank: " << rank << " Msg: Got STATUS_KONIE from " << status.MPI_SOURCE << endl;
+            //cout << "Timestamp: " << message[1] << " process rank: " << rank << " Msg: Got STATUS_KONIE from " << status.MPI_SOURCE << endl;
             KonieData tempData;
             tempData.rank = status.MPI_SOURCE;
             tempData.lamport_clock = message[1];
@@ -165,7 +165,7 @@ void *message_processor_skrzat (void * arg) {
             message[0] = rank;
             message[1] = lamport_clock;
             message[2] = 2137;
-            cout << "Timestamp: " << message[1] << "Cout process rank: " << rank << " Msg: Got STATUS_WSTAZKI from " << status.MPI_SOURCE << endl;
+            //cout << "Timestamp: " << message[1] << "  process rank: " << rank << " Msg: Got STATUS_WSTAZKI from " << status.MPI_SOURCE << endl;
             WstazkiData tempData;
             tempData.lamport_clock = message[1];
             tempData.rank = status.MPI_SOURCE;
@@ -183,7 +183,7 @@ void *message_processor_skrzat (void * arg) {
             pthread_mutex_lock(&mutexACK);
                 ACK++;
             pthread_mutex_unlock(&mutexACK);
-            cout << "Timestamp: " << message[1] << "Cout process rank: " << rank << " Msg: Got STATUS_ACK from " << status.MPI_SOURCE << endl;
+            //cout << "Timestamp: " << message[1] << "  process rank: " << rank << " Msg: Got STATUS_ACK from " << status.MPI_SOURCE << endl;
         }
         else if(status.MPI_TAG == STATUS_RELEASE){
             pthread_mutex_lock(&mutexKonie);
@@ -211,7 +211,7 @@ int main (int argc, char** argv) {
 
     srand(time(NULL));
 
-    //#shared mem -- po co to było? 
+    //#shared mem
     int message[3]; //komunikat
     lamport_clock = rank;
     KonieData konieData;
@@ -236,9 +236,9 @@ int main (int argc, char** argv) {
 
         pthread_mutex_lock(&mutexSend);
             for (int i = 0; i < size; i++) {
-                MPI_Send(&message, 3, MPI_INT, i, STATUS_WSTAZKI, MPI_COMM_WORLD); //GET WSĄŻKA
-                cout << "Sent \"wstazki\" request from " << rank << " to " << i 
-                << " with lamport clock " << lamport_clock << endl;
+                MPI_Send(&message, 3, MPI_INT, i, STATUS_WSTAZKI, MPI_COMM_WORLD); //GET WSTĄŻKA
+                //cout << "Sent \"wstazki\" request from " << rank << " to " << i 
+                //<< " with lamport clock " << lamport_clock << endl;
             }
         pthread_mutex_unlock(&mutexSend);
         ACK = 0;
@@ -259,8 +259,8 @@ int main (int argc, char** argv) {
         pthread_mutex_lock(&mutexSend);
             for (int i = 0; i < size; i++) {
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_KONIE, MPI_COMM_WORLD); //GET KOŃ
-                cout << "Sent \"konie\" request from " << rank << " to " << i 
-                << " with lamport clock " << lamport_clock << endl;
+                //cout << "Sent \"konie\" request from " << rank << " to " << i 
+                //<< " with lamport clock " << lamport_clock << endl;
             }
         pthread_mutex_unlock(&mutexSend);
         ACK = 0;
@@ -270,12 +270,15 @@ int main (int argc, char** argv) {
         cout << rank << ": Got  \"koń\"" << endl;
         //KONIE END
 
-        sleep(rand() % 1000); //DO STUFF
+        int time = rand() % 5;
+        cout << rank << ": doing stuff for " << time << "s" << endl;
+        sleep(time); //DO STUFF
+        cout << rank << ": finished" << endl;
 
         pthread_mutex_lock(&mutexSend);
             for(int i = 0; i < size; i++) {
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE, MPI_COMM_WORLD); //RELEASE
-                cout << "Release from " << rank << endl;
+                //cout << "Release from " << rank << endl;
             }
         pthread_mutex_unlock(&mutexSend);
     }
