@@ -14,18 +14,16 @@ using std::cout;
 using std::vector;
 using std::endl;
 using std::remove_if;
+using std::max;
 
-const int W = 10;
-const int K = 5;
-const float S = 0.4;
-const float P = 1 - S;
+const int W = 20;
+const int K = 2;
 const int STATUS_KONIE = 5000;
 const int STATUS_WSTAZKI = 6000;
 const int STATUS_RELEASE = 7000;
 const int STATUS_ACK = 1000;
 
-int ACK = 0;
-int lamport_clock;
+int ACK, lamport_clock;
 int size, rank, len; 
 
 struct KonieData {
@@ -51,51 +49,46 @@ vector<KonieData> konieQueue;
 vector<WstazkiData> wstazkiQueue;
 pthread_mutex_t mutexLamport = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexSend = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutexQueue = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutexQueueWstazki = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexKonieQueue = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexWstazkiQueue = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexACK = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexKonie = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexWstazki = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutexWaiting = PTHREAD_MUTEX_INITIALIZER;
 
 
-int getWating(vector<KonieData>data, KonieData konieData) {
-    pthread_mutex_lock(&mutexWaiting);
-        auto index = find(data.begin(), data.end(), konieData);
-        if (index != data.end()) {
-            auto dataBegin = data.begin();
-            pthread_mutex_unlock(&mutexWaiting);
-            return index - dataBegin + 1;
-        }
-    pthread_mutex_unlock(&mutexWaiting);
+int getKonie(vector<KonieData> queue, KonieData konieData) {
+    auto index = find(queue.begin(), queue.end(), konieData);
+
+    if (index != queue.end())
+        return index - queue.begin() + 1;
     return -1;
 }
 
+int getWstazki(vector<WstazkiData> wstazki, WstazkiData wstazkiData) {
 
-int getWstazki(vector<WstazkiData> wstazki, WstazkiData order) {
+    int result = wstazkiData.wstazki;
 
-    int suma = order.wstazki;
-
-    for(vector<WstazkiData>::const_iterator it = wstazki.begin(); it != find(wstazki.begin(), wstazki.end(), order); it++)
-    {
-        WstazkiData element = *it;
-        suma += element.wstazki;
+    for(vector<WstazkiData>::const_iterator index = wstazki.begin(); 
+        index != find(wstazki.begin(), wstazki.end(), wstazkiData); 
+        index++) {
+        WstazkiData element = *index;
+        result += element.wstazki;
     }
 
-    return suma;
+    return result;
 }
 
-void increaseLamport(int lamport){
+void increaseLamport(int lamport) {
     pthread_mutex_lock(&mutexLamport);
-    lamport_clock = (lamport > lamport_clock ? lamport : lamport_clock)+1;
+        lamport_clock = max(lamport_clock, lamport) + 1;
     pthread_mutex_unlock(&mutexLamport);
 }
 
 bool compare_KonieData(KonieData first, KonieData second){
     if (first.lamport_clock < second.lamport_clock){
-			return true;
+		return true;
     }
-    if (first.lamport_clock < second.lamport_clock){
+    if (first.lamport_clock > second.lamport_clock){
         return false;
     }
     else {
@@ -105,9 +98,9 @@ bool compare_KonieData(KonieData first, KonieData second){
 
 bool compare_WstazkiData(WstazkiData first, WstazkiData second){
     if (first.lamport_clock < second.lamport_clock){
-			return true;
+		return true;
     }
-    if (first.lamport_clock < second.lamport_clock){
+    if (first.lamport_clock > second.lamport_clock){
         return false;
     }
     else {
@@ -115,40 +108,30 @@ bool compare_WstazkiData(WstazkiData first, WstazkiData second){
     }
 }
 
-bool compare_removeKon(KonieData first, KonieData second){
-    return first.rank == second.rank;
-}
-
-bool compare_removeWstazka(WstazkiData first, WstazkiData second){
-    return first.rank == second.rank;
-}
-
-
 void removeFromKonieQueue(std::vector<KonieData> & konieDataQueue, int rank){
-		remove_if(konieDataQueue.begin(), konieDataQueue.end(), [&](KonieData const & place){
-				return place.rank== rank;
-				});
-        return;
+	remove_if(konieDataQueue.begin(), konieDataQueue.end(), [&](KonieData const & place){
+		return place.rank== rank;
+		});
+    return;
 }
-
 
 void removeFromWstazkiQueue(std::vector<WstazkiData> & wstazkiDataQueue, int rank){
 	remove_if(wstazkiDataQueue.begin(), wstazkiDataQueue.end(), [&](WstazkiData const & place){
-				return place.rank == rank;
-				});
+		return place.rank == rank;
+		});
     return;
 }
 
 
 void *message_processor_skrzat (void * arg) {
-    int recivedMessage[3];
+    int reciverMessage[3];
     int message[3];
     while (true) {
         MPI_Status status;
-        MPI_Recv(recivedMessage, 3, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Recv(reciverMessage, 3, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
         if (status.MPI_TAG == STATUS_KONIE){
-            increaseLamport(recivedMessage[1]);
+            increaseLamport(reciverMessage[1]);
             message[0] = rank;
             message[1] = lamport_clock;
             message[2] = 2137;
@@ -157,29 +140,29 @@ void *message_processor_skrzat (void * arg) {
             tempData.rank = status.MPI_SOURCE;
             tempData.lamport_clock = message[1];
 
-            pthread_mutex_lock(&mutexQueue);
+            pthread_mutex_lock(&mutexKonieQueue);
                 konieQueue.push_back(tempData);
                 sort(konieQueue.begin(), konieQueue.end(), compare_KonieData);
-            pthread_mutex_unlock(&mutexQueue);
+            pthread_mutex_unlock(&mutexKonieQueue);
 	
             pthread_mutex_lock(&mutexSend);
                 MPI_Send(&message, 3, MPI_INT, status.MPI_SOURCE, STATUS_ACK, MPI_COMM_WORLD);
 		    pthread_mutex_unlock(&mutexSend);
         }
-        else if(status.MPI_TAG == STATUS_WSTAZKI){
-            increaseLamport(recivedMessage[1]);
+        else if(status.MPI_TAG == STATUS_WSTAZKI) {
             message[0] = rank;
             message[1] = lamport_clock;
             message[2] = 2137;
+            increaseLamport(reciverMessage[1]);
             //cout << "Timestamp: " << message[1] << "  process rank: " << rank << " Msg: Got STATUS_WSTAZKI from " << status.MPI_SOURCE << endl;
             WstazkiData tempData;
             tempData.lamport_clock = message[1];
             tempData.rank = status.MPI_SOURCE;
             tempData.wstazki = message[2];
-            pthread_mutex_lock(&mutexQueueWstazki);
+            pthread_mutex_lock(&mutexWstazkiQueue);
                 wstazkiQueue.push_back(tempData);
                 sort(wstazkiQueue.begin(), wstazkiQueue.end(), compare_WstazkiData);
-            pthread_mutex_unlock(&mutexQueueWstazki);
+            pthread_mutex_unlock(&mutexWstazkiQueue);
 
             pthread_mutex_lock(&mutexSend);
                 MPI_Send(&message, 3, MPI_INT, status.MPI_SOURCE, STATUS_ACK, MPI_COMM_WORLD);
@@ -201,7 +184,6 @@ void *message_processor_skrzat (void * arg) {
             pthread_mutex_unlock(&mutexWstazki);
         }
     }
-
     return 0;
 }
 
@@ -213,9 +195,11 @@ int main (int argc, char** argv) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     srand(time(NULL));
+    //make true rand
+    for (int i = 0; i < 100*rank; i++) rand();
 
     //#shared mem
-    int message[3]; //komunikat
+    int message[3], time; //komunikat
     lamport_clock = rank;
     KonieData konieData;
     WstazkiData wstazkiData;
@@ -225,8 +209,36 @@ int main (int argc, char** argv) {
 
     while (true) {
         //if skarzty
+
+        //KONIE START
+        time = rand() % 10;
+        cout << rank << ": resting " << time << "s" << endl;
+        sleep(time); //DO STUFF
+        cout << rank << ": rested" << endl;
+        ACK = 0;
+        pthread_mutex_lock(&mutexLamport);
+            message[0] = rank;
+            message[1] = lamport_clock;
+            konieData.lamport_clock = lamport_clock;
+            konieData.rank = rank;
+        pthread_mutex_unlock(&mutexLamport);
+
+        pthread_mutex_lock(&mutexSend);
+            for (int i = 0; i < size; i++) {
+                MPI_Send(&message, 3, MPI_INT, i, STATUS_KONIE, MPI_COMM_WORLD); //GET KOŃ
+                //cout << "Sent \"konie\" request from " << rank << " to " << i 
+                //<< " with lamport clock " << lamport_clock << endl;
+            }
+        pthread_mutex_unlock(&mutexSend);
+        while(ACK < size);
+        cout << rank << ": Waiting for \"koń\"" << endl;
+        while (getKonie(konieQueue, konieData) > K);
+        cout << rank << ": Got  \"koń\"" << endl;
+        //KONIE END
+
         //WSTAZKI START
         int wstazki = rand() % W;
+        ACK = 0;
 
         pthread_mutex_lock(&mutexLamport);
             message[0] = rank;
@@ -244,37 +256,13 @@ int main (int argc, char** argv) {
                 //<< " with lamport clock " << lamport_clock << endl;
             }
         pthread_mutex_unlock(&mutexSend);
-        ACK = 0;
         while(ACK < size);
         cout << rank << ": Waiting for \"wstazki\"" << endl;
         while (getWstazki(wstazkiQueue, wstazkiData) > W);
         cout << rank << ": Got  \"wstazki\"" << endl;
         //WSTAZKI END
 
-        //KONIE START
-        pthread_mutex_lock(&mutexLamport);
-            message[0] = rank;
-            message[1] = lamport_clock;
-            message[2] = 2137;
-            konieData.lamport_clock = lamport_clock;
-            konieData.rank = rank;
-        pthread_mutex_unlock(&mutexLamport);
-
-        pthread_mutex_lock(&mutexSend);
-            for (int i = 0; i < size; i++) {
-                MPI_Send(&message, 3, MPI_INT, i, STATUS_KONIE, MPI_COMM_WORLD); //GET KOŃ
-                //cout << "Sent \"konie\" request from " << rank << " to " << i 
-                //<< " with lamport clock " << lamport_clock << endl;
-            }
-        pthread_mutex_unlock(&mutexSend);
-        ACK = 0;
-        while(ACK < size);
-        cout << rank << ": Waiting for \"koń\"" << endl;
-        while (getWating(konieQueue, konieData) > K);
-        cout << rank << ": Got  \"koń\"" << endl;
-        //KONIE END
-
-        int time = rand() % 4 + 1;
+        time = rand() % 10;
         cout << rank << ": doing stuff for " << time << "s" << endl;
         sleep(time); //DO STUFF
         cout << rank << ": finished" << endl;
