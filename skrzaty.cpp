@@ -28,6 +28,7 @@ const int STATUS_RELEASE_WSTAZKI = 6001;
 const int STATUS_RELEASE_SALKI = 7001;
 const int STATUS_SKRZAT_DONE = 8000;
 const int STATUS_PSYCHO = 9000;
+const int STATUS_RELEASE_PSYCHO = 9001;
 const int STATUS_TRAUMA = 10000;
 const int STATUS_ACK = 1000;
 
@@ -220,6 +221,15 @@ void removeFromTraumaQueue(std::vector<WstazkiData> &traumaDataQueue, int messag
     return;
 }
 
+void removeFromPsychoQueue(std::vector<KonieData> &psychoDataQueue, int message[3])
+{
+
+    psychoDataQueue.erase(remove_if(psychoDataQueue.begin(), psychoDataQueue.end(), [&](KonieData const &place)
+        { return place.rank == message[0]; }),
+        psychoDataQueue.end());
+    return;
+}
+
 void *monitor(void *arg)
 {
     int recivedMessage[3];
@@ -339,6 +349,12 @@ void *monitor(void *arg)
             pthread_mutex_lock(&mutexSalki);
             removeFromSalkiQueue(salkiQueue, recivedMessage);
             pthread_mutex_unlock(&mutexSalki);
+        }
+        else if (status.MPI_TAG == STATUS_RELEASE_PSYCHO)
+        {
+            pthread_mutex_lock(&mutexPsycho);
+            removeFromPsychoQueue(psychoQueue, recivedMessage);
+            pthread_mutex_unlock(&mutexPsycho);
         }
         else if (status.MPI_TAG == STATUS_SKRZAT_DONE)
         {
@@ -517,6 +533,7 @@ int main(int argc, char **argv)
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE_SALKI, MPI_COMM_WORLD);
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE_WSTAZKI, MPI_COMM_WORLD);
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE_KONIE, MPI_COMM_WORLD);
+                MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE_PSYCHO, MPI_COMM_WORLD);
             }
             pthread_mutex_unlock(&mutexSend);
         }
