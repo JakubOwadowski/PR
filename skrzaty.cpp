@@ -16,10 +16,11 @@ using std::max;
 using std::remove_if;
 using std::vector;
 
-const int W = 20;
-const int K = 5;
-const int S = 4;
-const float SPREC = 0.8;
+const int W = 50;
+const int K = 3;
+const int S = 3;
+const int MAXW = 5;
+const float SPREC = 0.6;
 const int STATUS_KONIE = 5000;
 const int STATUS_WSTAZKI = 6000;
 const int STATUS_SALKI = 7000;
@@ -186,46 +187,45 @@ bool compare_SalkiData(SalkiData first, SalkiData second)
     }
 }
 
-void removeFromKonieQueue(std::vector<KonieData> &konieDataQueue, int message[3])
+void removeFromKonieQueue(std::vector<KonieData> &konieDataQueue, int message)
 {
 
     konieDataQueue.erase(remove_if(konieDataQueue.begin(), konieDataQueue.end(), [&](KonieData const &place)
-        { return place.rank == message[0]; }),
+        { return place.rank == message; }),
         konieDataQueue.end());
     return;
 }
 
-void removeFromWstazkiQueue(std::vector<WstazkiData> &wstazkiDataQueue, int message[3])
+void removeFromWstazkiQueue(std::vector<WstazkiData> &wstazkiDataQueue, int message)
 {
     wstazkiDataQueue.erase(remove_if(wstazkiDataQueue.begin(), wstazkiDataQueue.end(), [&](WstazkiData const &place)
-        { return place.rank == message[0]; }),
+        { return place.rank == message; }),
         wstazkiDataQueue.end());
     return;
 }
 
-void removeFromSalkiQueue(std::vector<SalkiData> &salkiDataQueue, int message[3])
+void removeFromSalkiQueue(std::vector<SalkiData> &salkiDataQueue, int message)
 {
 
     salkiDataQueue.erase(remove_if(salkiDataQueue.begin(), salkiDataQueue.end(), [&](SalkiData const &place)
-        { return place.rank == message[0]; }),
+        { return place.rank == message; }),
         salkiDataQueue.end());
     return;
 }
 
-void removeFromTraumaQueue(std::vector<WstazkiData> &traumaDataQueue, int message[3])
+void removeFromTraumaQueue(std::vector<WstazkiData> &traumaDataQueue, int message)
 {
-
     traumaDataQueue.erase(remove_if(traumaDataQueue.begin(), traumaDataQueue.end(), [&](WstazkiData const &place)
-        { return place.rank == message[0]; }),
+        { return place.rank == message; }),
         traumaDataQueue.end());
     return;
 }
 
-void removeFromPsychoQueue(std::vector<KonieData> &psychoDataQueue, int message[3])
+void removeFromPsychoQueue(std::vector<KonieData> &psychoDataQueue, int message)
 {
 
     psychoDataQueue.erase(remove_if(psychoDataQueue.begin(), psychoDataQueue.end(), [&](KonieData const &place)
-        { return place.rank == message[0]; }),
+        { return place.rank == message; }),
         psychoDataQueue.end());
     return;
 }
@@ -329,31 +329,31 @@ void *monitor(void *arg)
         else if (status.MPI_TAG == STATUS_TRAUMA)
         {
             pthread_mutex_lock(&mutexTraumaQueue);
-            removeFromTraumaQueue(traumaQueue, recivedMessage);
+            removeFromTraumaQueue(traumaQueue, recivedMessage[0]);
             pthread_mutex_unlock(&mutexTraumaQueue);
         }
         else if (status.MPI_TAG == STATUS_RELEASE_KONIE)
         {
             pthread_mutex_lock(&mutexKonie);
-            removeFromKonieQueue(konieQueue, recivedMessage);
+            removeFromKonieQueue(konieQueue, recivedMessage[0]);
             pthread_mutex_unlock(&mutexKonie);
         }
         else if (status.MPI_TAG == STATUS_RELEASE_WSTAZKI)
         {
             pthread_mutex_lock(&mutexWstazki);
-            removeFromWstazkiQueue(wstazkiQueue, recivedMessage);
+            removeFromWstazkiQueue(wstazkiQueue, recivedMessage[0]);
             pthread_mutex_unlock(&mutexWstazki);
         }
         else if (status.MPI_TAG == STATUS_RELEASE_SALKI)
         {
             pthread_mutex_lock(&mutexSalki);
-            removeFromSalkiQueue(salkiQueue, recivedMessage);
+            removeFromSalkiQueue(salkiQueue, status.MPI_SOURCE);
             pthread_mutex_unlock(&mutexSalki);
         }
         else if (status.MPI_TAG == STATUS_RELEASE_PSYCHO)
         {
             pthread_mutex_lock(&mutexPsycho);
-            removeFromPsychoQueue(psychoQueue, recivedMessage);
+            removeFromPsychoQueue(psychoQueue, status.MPI_SOURCE);
             pthread_mutex_unlock(&mutexPsycho);
         }
         else if (status.MPI_TAG == STATUS_SKRZAT_DONE)
@@ -402,10 +402,6 @@ int main(int argc, char **argv)
     {
         if (rank < S) {
             // KONIE START
-            time = rand() % 10;
-            cout << rank << ": resting " << time << "s" << endl;
-            sleep(time); // DO STUFF
-            cout << rank << ": rested" << endl;
             ACK = 0;
             pthread_mutex_lock(&mutexLamport);
             message[0] = rank;
@@ -426,13 +422,13 @@ int main(int argc, char **argv)
             cout << rank << ": Waiting for \"koń\"" << endl;
             while (getKonie(konieQueue, konieData) > K)
             {
-                // cout<<rank<< ": getkonie:  " << getKonie(konieQueue, konieData) << " K: " << K << endl;
+                //cout<<rank<< ": getkonie:  " << getKonie(konieQueue, konieData) << " K: " << K << endl;
             }
             cout << rank << ": Got  \"koń\"" << endl;
             // KONIE END
 
             // WSTAZKI START
-            int wstazki = rand() % W;
+            int wstazki = rand() % MAXW + 1;
             ACK = 0;
 
             pthread_mutex_lock(&mutexLamport);
@@ -455,12 +451,12 @@ int main(int argc, char **argv)
             while (ACK < size)
                 ;
             cout << rank << ": Waiting for \"wstazki\"" << endl;
-            while (getWstazki(wstazkiQueue, wstazkiData) > W)
+            while (getWstazki(wstazkiQueue, wstazkiData) > W)//{cout << getWstazki(wstazkiQueue, wstazkiData)<< endl;}
                 ;
             cout << rank << ": Got  \"wstazki\"" << endl;
             // WSTAZKI END
 
-            time = rand() % 10;
+            time = rand() % 10 + 1;
             cout << rank << ": doing stuff for " << time << "s" << endl;
             sleep(time); // DO STUFF
             cout << rank << ": finished" << endl;
@@ -471,37 +467,11 @@ int main(int argc, char **argv)
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_SKRZAT_DONE, MPI_COMM_WORLD);
             }
             pthread_mutex_unlock(&mutexSend);
+            time = rand() % 10 + 1;
+            cout << rank << ": resting " << time << "s" << endl;
+            sleep(time); // DO STUFF
+            cout << rank << ": rested" << endl;
         } else {
-            //KONIE START
-            ACK = 0;
-            pthread_mutex_lock(&mutexPsycho);
-            psychoData.rank = rank;
-            psychoData.lamport_clock = lamport_clock;
-            pthread_mutex_unlock(&mutexPsycho);
-
-            pthread_mutex_lock(&mutexSend);
-            for (int i = 0; i < size; i++)
-            {
-                MPI_Send(&message, 3, MPI_INT, i, STATUS_PSYCHO, MPI_COMM_WORLD); // GET SALKA
-            }
-            pthread_mutex_unlock(&mutexSend);
-            while (ACK < size);
-            while (getPsycho(psychoQueue, psychoData) > traumaQueue.size());
-            pthread_mutex_lock(&mutexTraumaQueue);
-            cout << "size: " << traumaQueue.size() << endl;
-            WstazkiData traumaData = traumaQueue[0];
-            message[0] = traumaData.rank;
-            cout << rank << ": got koń " << traumaData.rank << endl;
-            pthread_mutex_lock(&mutexSend);
-            for (int i = 0; i < size; i++)
-            {
-                MPI_Send(&message, 3, MPI_INT, i, STATUS_TRAUMA, MPI_COMM_WORLD);
-            }
-            pthread_mutex_unlock(&mutexSend);     
-            pthread_mutex_unlock(&mutexTraumaQueue);       
-
-            //KONIE END
-
             //SALKI START
             ACK = 0;
             pthread_mutex_lock(&mutexLamport);
@@ -522,7 +492,36 @@ int main(int argc, char **argv)
             cout << rank << ": Got  \"salka\"" << endl;
             //SALKI END
 
-            time = rand() % 10;
+            //KONIE START
+            ACK = 0;
+            pthread_mutex_lock(&mutexPsycho);
+            psychoData.rank = rank;
+            psychoData.lamport_clock = lamport_clock;
+            pthread_mutex_unlock(&mutexPsycho);
+
+            pthread_mutex_lock(&mutexSend);
+            for (int i = 0; i < size; i++)
+            {
+                MPI_Send(&message, 3, MPI_INT, i, STATUS_PSYCHO, MPI_COMM_WORLD); // GET SALKA
+            }
+            pthread_mutex_unlock(&mutexSend);
+            while (ACK < size);
+            //cout << "psycho: " << getPsycho(psychoQueue, psychoData) << " size: " << traumaQueue.size() << endl;
+            while (getPsycho(psychoQueue, psychoData) > traumaQueue.size());
+            //cout << "psycho: " << getPsycho(psychoQueue, psychoData) << " size: " << traumaQueue.size() << endl;
+            pthread_mutex_lock(&mutexTraumaQueue);
+            WstazkiData traumaData = traumaQueue[0];
+            message[0] = traumaData.rank;
+            cout << rank << ": got koń " << traumaData.rank << endl;
+            pthread_mutex_lock(&mutexSend);
+            for (int i = 0; i < size; i++)
+            {
+                MPI_Send(&message, 3, MPI_INT, i, STATUS_TRAUMA, MPI_COMM_WORLD);
+            }
+            pthread_mutex_unlock(&mutexSend);  
+            pthread_mutex_unlock(&mutexTraumaQueue);       
+
+            time = rand() % 10 + 1;
             cout << rank << ": fixing horse for " << time << "s" << endl;
             sleep(time); // DO STUFF
             cout << rank << ": finished" << endl;
@@ -535,7 +534,8 @@ int main(int argc, char **argv)
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE_KONIE, MPI_COMM_WORLD);
                 MPI_Send(&message, 3, MPI_INT, i, STATUS_RELEASE_PSYCHO, MPI_COMM_WORLD);
             }
-            pthread_mutex_unlock(&mutexSend);
+            pthread_mutex_unlock(&mutexSend);  
+            //KONIE END
         }
     }
 
